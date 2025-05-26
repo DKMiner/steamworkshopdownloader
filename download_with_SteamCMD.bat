@@ -5,6 +5,7 @@ setlocal enableDelayedExpansion
 :: Default SteamCMD executable name
 set "STEAMCMD_EXE_NAME=steamcmd.exe"
 set "STEAMCMD_FULL_PATH="
+set "STEAMCMD_DIR_LOCATION=" :: This variable will store the final directory path of SteamCMD
 
 :: --- Main Script Logic ---
 
@@ -16,6 +17,8 @@ call :CheckForCommandInPath "%STEAMCMD_EXE_NAME%"
 
 if defined STEAMCMD_FULL_PATH (
     echo %STEAMCMD_EXE_NAME% found in PATH: %STEAMCMD_FULL_PATH%
+    :: Extract the directory from STEAMCMD_FULL_PATH if found in PATH
+    for %%F in ("!STEAMCMD_FULL_PATH!") do set "STEAMCMD_DIR_LOCATION=%%~dpF"
 ) else (
     echo %STEAMCMD_EXE_NAME% not found in PATH.
     echo.
@@ -35,8 +38,13 @@ if defined STEAMCMD_FULL_PATH (
         exit /b 1
     ) else (
         echo %STEAMCMD_EXE_NAME% found at: %STEAMCMD_FULL_PATH%
+        :: If found via user input, that's already the directory
+        set "STEAMCMD_DIR_LOCATION=!STEAMCMD_DIR_INPUT!"
     )
 )
+
+:: Ensure STEAMCMD_DIR_LOCATION has a trailing backslash for consistency
+if not "!STEAMCMD_DIR_LOCATION:~-1!"=="\" set "STEAMCMD_DIR_LOCATION=!STEAMCMD_DIR_LOCATION!\"
 
 echo.
 echo SteamCMD executable found. Proceeding with download prompts.
@@ -66,7 +74,10 @@ set "INDEX=0"
     :: Check if CURRENT_WORKSHOP_IDS is empty (meaning all processed or was initially empty)
     if "%CURRENT_WORKSHOP_IDS%"=="" goto :end_loop_workshop_ids
 
-    for /f "tokens=1* delims=," %%a in ("%CURRENT_WORKSHOP_IDS%") do (
+    :: Ensure CURRENT_WORKSHOP_IDS always has a trailing comma for this loop to work consistently
+    if not "!CURRENT_WORKSHOP_IDS:~-1!"=="," set "CURRENT_WORKSHOP_IDS=!CURRENT_WORKSHOP_IDS!,"
+
+    for /f "tokens=1* delims=," %%a in ("!CURRENT_WORKSHOP_IDS!") do (
         set "WORKSHOP_ID=%%a"
         set "CURRENT_WORKSHOP_IDS=%%b" :: This is the rest of the string after the first ID
     )
@@ -99,12 +110,12 @@ set "INDEX=0"
 
 echo --- All requested workshop item downloads processed. ---
 echo.
-echo Workshop items are typically downloaded to:
-echo "C:\Program Files (x86)\Steam\steamapps\workshop\content\%GAME_STEAMID%\" (if SteamCMD uses main Steam install)
+echo Workshop items are typically downloaded to locations like:
+echo "C:\Program Files (x86)\Steam\steamapps\workshop\content\%GAME_STEAMID%\<WORKSHOP_ITEM_ID>\" (if SteamCMD uses main Steam install)
 echo OR
-echo "%STEAMCMD_DIR_INPUT%\steamapps\workshop\content\%GAME_STEAMID%\" (if SteamCMD is standalone)
+echo "%STEAMCMD_DIR_LOCATION%steamapps\workshop\content\%GAME_STEAMID%\<WORKSHOP_ITEM_ID>\" (if SteamCMD is standalone)
 echo.
-echo Please check these directories for your downloaded files.
+echo The exact location depends on your SteamCMD setup. Look for a 'steamapps\workshop\content' folder.
 echo.
 pause
 exit /b 0
