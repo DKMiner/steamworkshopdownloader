@@ -19,10 +19,12 @@ Capable of downloading both Steam Workshop collections and individual workshop i
 # Downloading individual workshop items (via SteamCMD)
 
 1. Download and install SteamCMD and add it to PATH (visit [https://developer.valvesoftware.com/wiki/SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) for more info)
-2. Run either download_with_SteamCMD.sh (Linux) or download_with_SteamCMD.bat (Windows) based on your system. (*note: you may need to run chmod +x download_with_SteamCMD.sh on Linux before being able to execute the file)
-3. Enter the App ID for the game you want to download the workshop items for.
-4. Enter the Workshop IDs for items you wanna download. If there's more than one you can separate them by comma
-5. Wait
-6. Go to the location pointed out by SteamCMD
+2. Run either download_with_SteamCMD.sh (Linux) or download_with_SteamCMD.bat (Windows) based on your system.
+*Linux note: you may need to run chmod +x download_with_SteamCMD.sh on Linux before being able to execute the file*
+*Windows note: either add SteamCMD to path or copy the directory where the executable is located by clicking on the address bar in the windows explorer*
+4. Enter the App ID for the game you want to download the workshop items for.
+5. Enter the Workshop IDs for items you wanna download. If there's more than one you can separate them by comma
+6. Wait
+7. Go to the location pointed out by SteamCMD
 
 *note: conveniently, the node.js script gives you the workshop ID of failed downloads separated by comma. You can use that here easily :D*
