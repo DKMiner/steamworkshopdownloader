@@ -14,6 +14,7 @@ Capable of downloading both Steam Workshop collections and individual workshop i
 
 
 *note: sometimes some workshop items are not downloaded using this method. Read the individual workshop item downloader part for that.*
+
 *note 2: if you want to change the default file extension from .zip use `npm start <new extension>` command instead of `npm start`*
 
 # Downloading individual workshop items (via SteamCMD)
