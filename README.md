@@ -26,6 +26,9 @@ Capable of downloading both Steam Workshop collections and individual workshop i
 
 *Windows note: either add SteamCMD to path or copy the directory where the executable is located by clicking on the address bar in the windows explorer*
 
+# TO DO
+1. Try to change the SteamCMD scripts to download all items in one go instead of connecting to Steam for every single item
+
 4. Enter the App ID for the game you want to download the workshop items for.
 5. Enter the Workshop IDs for items you wanna download. If there's more than one you can separate them by comma
 6. Wait
