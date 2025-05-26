@@ -31,8 +31,16 @@ async function download(count = 0) {
             console.log("\n--- Download Summary ---");
             console.log("The following workshop items could not be downloaded:");
             failedDownloads.forEach(item => {
-                console.log(`- Collection: "${item.collectionName}", Item: "${item.itemName}"`);
+                console.log(`- Collection: "${item.collectionName}", Item: "${item.itemName}" (ID: ${item.workshopId || 'N/A'})`);
             });
+
+            const failedWorkshopIds = failedDownloads
+                .filter(item => item.workshopId && item.workshopId !== "N/A")
+                .map(item => item.workshopId);
+
+            if (failedWorkshopIds.length > 0) {
+                console.log(`\nWorkshop ID for failed items: ${failedWorkshopIds.join(', ')}`);
+            }
         } else {
             console.log("\nAll workshop items processed successfully!");
         }
@@ -77,7 +85,7 @@ async function download(count = 0) {
 
                 if (fs.existsSync(collectionDir + '/' + fileName)) {
                     console.log(`  Skipping "${packageName.split("/").join("")}", file already downloaded`);
-                    continue;
+                    continue; // Skip to the next item
                 } else {
                     console.log(`  ${idx + 1}. Attempting to download "${packageName}"`);
                     let directDownloadUrl = null;
@@ -115,13 +123,23 @@ async function download(count = 0) {
                         }
                     } catch (itemErr) {
                         console.error(`    Error processing or finding download for "${packageName}": ${itemErr.message}`);
-                        failedDownloads.push({ collectionName, itemName: packageName, error: itemErr.message });
+                        failedDownloads.push({
+                            collectionName,
+                            itemName: packageName,
+                            workshopId: workshopId,
+                            error: itemErr.message
+                        });
                     }
                 }
             }
         } catch (collectionErr) {
             console.error(`Error processing collection URL "${url}": ${collectionErr.message}`);
-            failedDownloads.push({ collectionName: `Failed to process URL: ${url}`, itemName: "N/A", error: collectionErr.message });
+            failedDownloads.push({
+                collectionName: `Failed to process URL: ${url}`,
+                itemName: "N/A",
+                workshopId: "N/A",
+                error: collectionErr.message
+            });
         }
     } else {
         console.warn(`Skipping invalid URL: "${url}" (does not include "http")`);
@@ -147,8 +165,12 @@ async function downloadAndSave(url, dir, fileName) {
             rej(err);
         });
         helper.on('progress', (stats) => {
-            console.log(`      Downloading ${fileName}: ${stats.progress.toFixed(2)}% at ${ (stats.speed / 1024 / 1024).toFixed(2) }MB/s`);
+            process.stdout.write(`\r      Downloading ${fileName}: ${stats.progress.toFixed(2)}% at ${ (stats.speed / 1024 / 1024).toFixed(2) }MB/s`);
         });
+        helper.on('skip', (skipStats) => {
+            console.log(`      Skipping download for ${skipStats.fileName}. File already exists.`);
+        });
+
         helper.start();
     });
 }
