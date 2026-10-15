@@ -12,6 +12,7 @@ if errorlevel 1 (
 )
 if exist "%ProgramFiles%\nodejs\node.exe" set "PATH=%ProgramFiles%\nodejs;%PATH%"
 if exist "%ProgramFiles(x86)%\nodejs\node.exe" set "PATH=%ProgramFiles(x86)%\nodejs;%PATH%"
+if exist "%~dp0.runtime\node\node.exe" set "PATH=%~dp0.runtime\node;%PATH%"
 where node >nul 2>&1
 if errorlevel 1 (
     echo Node.js still isn't available. Close this window and rerun start.bat after installing it.
