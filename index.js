@@ -11,7 +11,8 @@ const { DownloaderHelper } = require('node-downloader-helper');
 
 const ROOT = __dirname;
 const URLS_FILE = path.join(ROOT, 'urls.txt');
-const DOWNLOAD_DIR = path.join(ROOT, 'downloads');
+const DEFAULT_DOWNLOAD_DIR = path.join(ROOT, 'downloads');
+const STEAMCMD_STAGING_DIR = path.join(ROOT, '.steamcmd-staging');
 const LOG_DIR = path.join(ROOT, 'logs');
 const LOG_FILE = path.join(ROOT, 'downloader.log');
 const OPTIONS_FILE = path.join(ROOT, 'options.ini');
@@ -67,6 +68,39 @@ function saveOption(key, value) {
     ];
     for (const name of Object.keys(options).sort()) lines.push(name + '=' + options[name]);
     fs.writeFileSync(OPTIONS_FILE, lines.join('\n') + '\n', 'utf8');
+}
+
+function getOutputPath() {
+    const options = readOptions();
+    const configured = String(options.outputPath || '').trim().replace(/^["']|["']$/g, '');
+    return path.resolve(configured || DEFAULT_DOWNLOAD_DIR);
+}
+
+function ensureOutputDirectories() {
+    const root = getOutputPath();
+    fs.mkdirSync(path.join(root, 'collections'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'items'), { recursive: true });
+    return root;
+}
+
+async function changeOutputFolder() {
+    const current = getOutputPath();
+    console.log('\nCurrent download folder: ' + current);
+    const entered = await ask('Enter the new folder path (leave empty to cancel): ');
+    if (!entered) {
+        console.log('No changes made.');
+        return;
+    }
+    const cleaned = entered.replace(/^["']|["']$/g, '');
+    const selected = path.resolve(cleaned);
+    try {
+        fs.mkdirSync(path.join(selected, 'collections'), { recursive: true });
+        fs.mkdirSync(path.join(selected, 'items'), { recursive: true });
+        saveOption('outputPath', selected);
+        console.log('Download folder saved: ' + selected);
+    } catch (err) {
+        console.error('Could not use that folder: ' + err.message);
+    }
 }
 
 function expectedSteamCmdNames() {
