@@ -1,37 +1,49 @@
-# Steam Workshop Collection Downloader
+# Steam Workshop Downloader
 
-Simple steam workshop collection downloader built using nodejs.
-Capable of downloading both Steam Workshop collections and individual workshop items. Follow the instruction below to use this.
+A small cross-platform CLI for downloading public Steam Workshop items. It combines the original collection downloader and the individual SteamCMD retry scripts behind one menu.
 
-# Downloading collections
+## Quick start
 
-1. Firstly you will need Node JS installed in your pc. you can get it from [https://nodejs.org/en/download/](https://nodejs.org/en/download/).
-2. Download or Clone the repository. (you can do it using the clone or download button and download zip, extract the zip into a folder.)
-3. Open cmd or bash in the directory where repository was cloned. *(open cmd or bash and go to the directory. make sure it is prompting on the same drive c: or d: and use `cd <directory where you have the file from git>`.)*
-4. Run `npm install` command on cmd or bash to install required libraries.
-5. Now open urls.txt using any texteditor and put urls to **collections** as it is provided in given example. *(make sure that the url are to the collection and that they are seperated by line break `<enter>`)*
-6. Run `npm start` command to start downloading. All your downloads should be under downloads folder.
+**Windows:** extract the repository ZIP, then double-click setup.bat. When setup finishes, run start.bat.
 
+**Linux:** extract/clone the repository and run these commands in a terminal:
 
-*note: sometimes some workshop items are not downloaded using this method. Read the individual workshop item downloader part for that.*
+    chmod +x setup.sh start.sh
+    ./setup.sh
+    ./start.sh
 
-*note 2: if you want to change the default file extension from .zip use `npm start <new extension>` command instead of `npm start`*
+The setup script checks for Node.js/npm, attempts installation using the platform's package manager or official installer where practical, and installs the project's npm dependencies. If automatic installation is unavailable, install a supported Node.js LTS release from https://nodejs.org/en/download and run setup again.
 
-# Downloading individual workshop items (via SteamCMD)
+## Menu
 
-1. Download and install SteamCMD and add it to PATH (visit [https://developer.valvesoftware.com/wiki/SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) for more info)
-2. Run either download_with_SteamCMD.sh (Linux) or download_with_SteamCMD.bat (Windows) based on your system.
-   
-*Linux note: you may need to run chmod +x download_with_SteamCMD.sh on Linux before being able to execute the file*
+1. **Download from urls.txt** — put one Steam Workshop collection URL or individual item URL per line. The downloader detects collection pages by their item list, then attempts each item. Existing non-empty output files are skipped.
+2. **Download by App ID + Workshop ID(s)** — enter the App ID, then Workshop IDs separated by commas, e.g. 12345,67890,112233. SteamCMD is started once, performs one anonymous login, and processes all IDs in that session.
+3. **Configure / download SteamCMD** — if SteamCMD is not in PATH, enter its folder or executable path (saved in options.ini) or download it into the project folder.
+4. Exit.
 
-*Windows note: either add SteamCMD to path or copy the directory where the executable is located by clicking on the address bar in the windows explorer*
+## Files and output
 
-# TO DO
-1. Try to change the SteamCMD scripts to download all items in one go instead of connecting to Steam for every single item
+- urls.txt — collection and individual item URLs for menu option 1.
+- options.ini — locally saved SteamCMD executable path.
+- downloads/ — output from URL mode.
+- downloader.log — latest run log.
+- logs/ — timestamped run logs.
 
-4. Enter the App ID for the game you want to download the workshop items for.
-5. Enter the Workshop IDs for items you wanna download. If there's more than one you can separate them by comma
-6. Wait
-7. Go to the location pointed out by SteamCMD
+Every log contains three sections: general startup/network/program output, completed items grouped by source URL and App ID, and failed or unconfirmed Workshop IDs grouped by App ID. The failed section is formatted so that IDs can be copied into menu option 2. SteamCMD's raw output is included in the general section.
 
-*note: conveniently, the node.js script gives you the workshop ID of failed downloads separated by comma. You can use that here easily :D*
+## Notes
+
+- Menu option 1 preserves the original third-party steamworkshop.download URL-resolution method. It depends on Steam Community pages being accessible and on that third-party service continuing to work. This path does not use SteamCMD.
+- Menu option 2 uses SteamCMD and is intended for failed items or direct bulk downloads. Anonymous access may not work for every item; SteamCMD's own output is included in the log.
+- A SteamCMD process returning exit code 0 is not treated as proof every ID succeeded. The tool looks for item-level success/failure output and checks the expected content directory; ambiguous items are listed as needing review rather than silently marked successful.
+- Downloads from the original URL mode are ZIP archives and use .zip by default. To choose another extension, launch with an extension argument, e.g. node index.js .7z. Only the filename extension changes; it does not convert the downloaded archive.
+- If SteamCMD's output directory differs from the detected common locations, follow the path printed by SteamCMD. The location can vary by operating system and Steam library configuration.
+
+## Troubleshooting
+
+1. Re-run setup.bat or ./setup.sh if dependencies are missing.
+2. Select menu option 3 to update the SteamCMD path if it moved.
+3. Inspect downloader.log and logs/ for item-level errors.
+4. If an item fails in URL mode, copy its ID from section 3, select menu option 2, enter the matching App ID, and paste the comma-separated IDs.
+
+This project is released under the license in LICENSE.
