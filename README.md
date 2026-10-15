@@ -12,12 +12,12 @@ A small cross-platform CLI for downloading public Steam Workshop items. It combi
     ./setup.sh
     ./start.sh
 
-The setup script checks for Node.js/npm, attempts installation using the platform's package manager or official installer where practical, and installs the project's npm dependencies. If automatic installation is unavailable, install a supported Node.js LTS release from https://nodejs.org/en/download and run setup again.
+The setup script checks for Node.js/npm, attempts installation using the platform's package manager or a portable official Node.js LTS archive where practical, and installs the project's npm dependencies. If automatic installation is unavailable, install a supported Node.js LTS release from https://nodejs.org/en/download and run setup again.
 
 ## Menu
 
 1. **Download from urls.txt** — put one Steam Workshop collection URL or individual item URL per line. The downloader detects collection pages by their item list, then attempts each item. Existing non-empty output files are skipped.
-2. **Download by App ID + Workshop ID(s)** — enter the App ID, then Workshop IDs separated by commas, e.g. 12345,67890,112233. SteamCMD is started once, performs one anonymous login, and processes all IDs in that session.
+2. **Download by App ID + Workshop ID(s)** — enter the App ID, then Workshop IDs separated by commas, e.g. 12345,67890,112233. SteamCMD is started once and uses a runscript for one anonymous login followed by all requested IDs. The script continues after individual failures and avoids command-line length limits on Windows.
 3. **Configure / download SteamCMD** — if SteamCMD is not in PATH, enter its folder or executable path (saved in options.ini) or download it into the project folder.
 4. Exit.
 
