@@ -1,49 +1,59 @@
 # Steam Workshop Downloader
 
-A small cross-platform CLI for downloading public Steam Workshop items. It combines the original collection downloader and the individual SteamCMD retry scripts behind one menu.
+A cross-platform command-line tool for downloading Steam Workshop collections and individual items.
 
-## Quick start
+## Getting started
 
-**Windows:** extract the repository ZIP, then double-click setup.bat. When setup finishes, run start.bat.
+**Windows:** run setup.bat, then run start.bat.
 
-**Linux:** extract/clone the repository and run these commands in a terminal:
+**Linux:** run:
 
     chmod +x setup.sh start.sh
     ./setup.sh
     ./start.sh
 
-The setup script checks for Node.js/npm, attempts installation using the platform's package manager or a portable official Node.js LTS archive where practical, and installs the project's npm dependencies. If automatic installation is unavailable, install a supported Node.js LTS release from https://nodejs.org/en/download and run setup again.
+Setup checks for Node.js and npm, attempts automatic installation where practical, then installs the project dependencies. SteamCMD is configured separately from the main menu when direct Workshop downloads are needed.
 
-## Menu
+## Main menu
 
-1. **Download from urls.txt** — put one Steam Workshop collection URL or individual item URL per line. The downloader detects collection pages by their item list, then attempts each item. Existing non-empty output files are skipped.
-2. **Download by App ID + Workshop ID(s)** — enter the App ID, then Workshop IDs separated by commas, e.g. 12345,67890,112233. SteamCMD is started once and uses a runscript for one anonymous login followed by all requested IDs. The script continues after individual failures and avoids command-line length limits on Windows.
-3. **Configure / download SteamCMD** — if SteamCMD is not in PATH, enter its folder or executable path (saved in options.ini) or download it into the project folder.
-4. Exit.
+1. **Download from urls.txt** — add one Steam Workshop collection URL or individual-item URL per line. The program detects collection pages automatically.
+2. **Download by App ID and Workshop IDs** — enter one App ID and comma-separated Workshop IDs.
+3. **Change download folder** — choose where downloaded content should be saved. The path is stored in options.ini.
+4. **SteamCMD settings** — select an existing SteamCMD installation or download a private copy.
+5. Exit.
 
-## Files and output
+## Download layout
 
-- urls.txt — collection and individual item URLs for menu option 1.
-- options.ini — locally saved SteamCMD executable path.
-- downloads/ — output from URL mode.
-- downloader.log — latest run log.
-- logs/ — timestamped run logs.
+The default download location is the project's downloads folder. It can be changed from the menu. Both modes use the following structure:
 
-Every log contains three sections: general startup/network/program output, completed items grouped by source URL and App ID, and failed or unconfirmed Workshop IDs grouped by App ID. The failed section is formatted so that IDs can be copied into menu option 2. SteamCMD's raw output is included in the general section.
+    downloads/
+      collections/
+        TTT maps/
+          item-name.zip
+      items/
+        Garry's Mod/
+          1234567890/
+            Workshop item files...
+
+- **Collection URLs:** downloaded archives are stored in collections/<collection name>/. The name is read from the Workshop collection page, so a collection such as "TTT maps" gets that folder name.
+- **Individual URLs:** archives are stored in items/<game name>/.
+- **App ID mode:** SteamCMD's item files are staged in an application-managed SteamCMD runtime, then moved into items/<game name>/<Workshop ID>/. The code does not search the user's regular Steam library locations. SteamCMD's runtime is kept separate from the chosen output folder.
+- The game name is looked up from Steam Store data, with SteamDB as a fallback. If neither lookup works, the folder uses App <AppID>.
+
+options.ini stores the chosen output path and SteamCMD configuration. Download reports are printed after a run and saved to downloader.log; timestamped reports go in logs/.
 
 ## Notes
 
-- Menu option 1 preserves the original third-party steamworkshop.download URL-resolution method. It depends on Steam Community pages being accessible and on that third-party service continuing to work. This path does not use SteamCMD.
-- Menu option 2 uses SteamCMD and is intended for failed items or direct bulk downloads. Anonymous access may not work for every item; SteamCMD's own output is included in the log.
-- A SteamCMD process returning exit code 0 is not treated as proof every ID succeeded. The tool looks for item-level success/failure output and checks the expected content directory; ambiguous items are listed as needing review rather than silently marked successful.
-- Downloads from the original URL mode are ZIP archives and use .zip by default. To choose another extension, launch with an extension argument, e.g. node index.js .7z. Only the filename extension changes; it does not convert the downloaded archive.
-- If SteamCMD's output directory differs from the detected common locations, follow the path printed by SteamCMD. The location can vary by operating system and Steam library configuration.
+- URL mode keeps the original third-party steamworkshop.download resolver. It depends on Steam Community pages and that external service being available.
+- App ID mode uses SteamCMD and may fail on items that do not permit anonymous downloads. Failed or unconfirmed IDs are grouped by App ID in the report so they can be retried.
+- ZIP mode downloads archives; changing the extension argument (for example, node index.js .7z) changes the filename extension only, it does not convert the archive.
+- The repository includes .gitignore entries for downloads, logs, local SteamCMD runtimes, temporary scripts, and local configuration. These files are generated locally and should not be committed.
 
 ## Troubleshooting
 
-1. Re-run setup.bat or ./setup.sh if dependencies are missing.
-2. Select menu option 3 to update the SteamCMD path if it moved.
-3. Inspect downloader.log and logs/ for item-level errors.
-4. If an item fails in URL mode, copy its ID from section 3, select menu option 2, enter the matching App ID, and paste the comma-separated IDs.
+1. Run setup.bat or ./setup.sh if Node.js dependencies are missing.
+2. Use SteamCMD settings to update the configured SteamCMD location.
+3. Check downloader.log and logs/ for the full report.
+4. Copy failed IDs from report section 3 and retry them with menu option 2.
 
-This project is released under the license in LICENSE.
+Licensed under the terms in LICENSE.
