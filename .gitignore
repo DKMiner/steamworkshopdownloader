@@ -109,3 +109,4 @@ downloads
 options.ini
 .steamcmd-download.zip
 .steamcmd-download.tar.gz
+.steamcmd-batch-*.txt
