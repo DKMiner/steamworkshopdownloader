@@ -476,15 +476,20 @@ function moveWorkshopContent(sourceDir, destinationDir) {
 }
 
 async function downloadViaSteamCMD(run, appId, ids, source) {
-    const steamcmdPath = findSteamCmd();
-    if (!steamcmdPath) throw new Error('SteamCMD is not configured. Select menu option 3 to configure it.');
+    const configuredSteamCmd = findSteamCmd();
+    if (!configuredSteamCmd) throw new Error('SteamCMD is not configured. Choose “SteamCMD settings” from the menu first.');
 
-    // SteamCMD's runscript avoids Windows command-line length limits and lets it
-    // continue to later IDs when one individual item fails.
-    const scriptPath = path.join(ROOT, '.steamcmd-batch-' + Date.now() + '.txt');
+    const steamcmdPath = copySteamCmdRuntime(configuredSteamCmd);
+    const gameName = await getGameName(appId);
+    const outputRoot = ensureOutputDirectories();
+    const targetGameDir = path.join(outputRoot, 'items', gameName);
+
+    fs.mkdirSync(STEAMCMD_STAGING_DIR, { recursive: true });
+    const scriptPath = path.join(STEAMCMD_STAGING_DIR, 'batch-' + Date.now() + '.txt');
     const scriptLines = [
         '@ShutdownOnFailedCommand 0',
         '@NoPromptForPassword 1',
+        'force_install_dir "' + STEAMCMD_STAGING_DIR.replace(/"/g, '') + '"',
         'login anonymous'
     ];
     for (const id of ids) {
@@ -492,17 +497,13 @@ async function downloadViaSteamCMD(run, appId, ids, source) {
     }
     scriptLines.push('quit');
     fs.writeFileSync(scriptPath, scriptLines.join('\n') + '\n', 'utf8');
-    const args = ['+runscript', scriptPath];
 
-    logInfo(run, 'SteamCMD executable: ' + steamcmdPath);
-    logInfo(run, 'App ID: ' + appId);
+    logInfo(run, 'SteamCMD runtime: ' + steamcmdPath);
+    logInfo(run, 'Game: ' + gameName + ' (App ID ' + appId + ')');
     logInfo(run, 'Workshop IDs: ' + ids.join(', '));
-    logInfo(run, 'SteamCMD will be started once. Its runscript performs one anonymous login and then tries every ID in the same session.');
-    logInfo(run, 'The script continues after individual failures and suppresses password prompts.');
-    logInfo(run, 'Command sequence: login anonymous; ' + ids.map(function (id) {
-        return 'workshop_download_item ' + appId + ' ' + id + ' validate';
-    }).join('; ') + '; quit');
-    console.log('\nStarting SteamCMD. Its output is shown below:\n');
+    logInfo(run, 'Downloads are staged in the application folder and then moved to: ' + targetGameDir);
+    logInfo(run, 'Configured output folder: ' + outputRoot);
+    console.log('\nStarting download...\n');
 
     let output = '';
     let childError = null;
@@ -513,19 +514,24 @@ async function downloadViaSteamCMD(run, appId, ids, source) {
             settled = true;
             resolve(code);
         }
+
         let child;
         try {
-            child = spawn(steamcmdPath, args, { cwd: path.dirname(steamcmdPath), windowsHide: true });
+            child = spawn(steamcmdPath, ['+runscript', scriptPath], {
+                cwd: path.dirname(steamcmdPath),
+                windowsHide: true
+            });
         } catch (err) {
             childError = err;
             finish(-1);
             return;
         }
+
         function capture(chunk) {
-            const text = chunk.toString();
-            output += text;
-            process.stdout.write(text);
-            text.split(/[\r\n]+/).forEach(function (line) {
+            const chunkText = chunk.toString();
+            output += chunkText;
+            process.stdout.write(chunkText);
+            chunkText.split(/[\r\n]+/).forEach(function (line) {
                 if (line.trim()) run.general.push('[SteamCMD] ' + line.trim());
             });
         }
@@ -536,55 +542,62 @@ async function downloadViaSteamCMD(run, appId, ids, source) {
     });
 
     try { fs.unlinkSync(scriptPath); } catch (_) {}
-    if (childError) logInfo(run, 'Could not launch SteamCMD: ' + childError.message);
+    if (childError) logInfo(run, 'Could not launch isolated SteamCMD: ' + childError.message);
     else logInfo(run, 'SteamCMD process exited with code: ' + exitCode);
 
     const outputLines = output.split(/[\r\n]+/);
+    const contentRootCandidates = getContentRoots(steamcmdPath);
+    logInfo(run, 'Private staging locations checked: ' + contentRootCandidates.join(' | '));
+
     for (const id of ids) {
-        // IDs are numeric and validated before reaching this function.
-        const failRegex = new RegExp('(ERROR!.*(?:item\\s*)?' + id + '\\b|failed.*' + id + '\\b)', 'i');
-        const successRegex = new RegExp('(Success\\.\\s*Downloaded item\\s+' + id + '\\b|Downloaded item\\s+' + id + '\\s+to\\s+)', 'i');
+        const failureRegex = new RegExp('(ERROR!.*(?:item\\s*)?' + id + '\\b|failed.*' + id + '\\b)', 'i');
         let failureLine = null;
-        let successLine = null;
         for (const line of outputLines) {
-            if (!failureLine && failRegex.test(line)) failureLine = line.trim();
-            if (!successLine && successRegex.test(line)) successLine = line.trim();
+            if (failureRegex.test(line)) {
+                failureLine = line.trim();
+                break;
+            }
         }
 
         const sourceDetails = {
             sourceType: source.sourceType || 'Manual AppID entry',
             sourceLabel: source.sourceLabel || 'Manual AppID entry',
             appId: String(appId),
-            workshopId: String(id)
+            workshopId: String(id),
+            gameName: gameName
         };
 
+        const stagedDir = findWorkshopContent(steamcmdPath, appId, id);
         if (failureLine) {
             addFailure(run, Object.assign({}, sourceDetails, { error: 'SteamCMD reported: ' + failureLine }));
-        } else if (successLine) {
-            addSuccess(run, Object.assign({}, sourceDetails, { note: 'SteamCMD reported a successful download.' }));
-        } else {
-            const existingDir = hasWorkshopContent(steamcmdPath, appId, id);
-            if (existingDir && exitCode === 0) {
-                addSuccess(run, Object.assign({}, sourceDetails, { note: 'Workshop content is present at ' + existingDir }));
-            } else {
-                addFailure(run, Object.assign({}, sourceDetails, {
-                    error: childError ? childError.message : (exitCode !== 0
-                        ? 'SteamCMD exited with code ' + exitCode + ' without confirming this item.'
-                        : 'SteamCMD did not confirm this item. Check the General Information section of the log.')
-                }));
-            }
+            continue;
+        }
+
+        if (!stagedDir) {
+            addFailure(run, Object.assign({}, sourceDetails, {
+                error: childError
+                    ? childError.message
+                    : 'No downloaded files were found in the isolated staging directory for this ID. See the general log section.'
+            }));
+            continue;
+        }
+
+        const destination = path.join(targetGameDir, String(id));
+        try {
+            moveWorkshopContent(stagedDir, destination);
+            logInfo(run, 'Saved Workshop ID ' + id + ' to ' + destination);
+            addSuccess(run, Object.assign({}, sourceDetails, {
+                note: 'Content moved from private staging to the selected download folder.'
+            }));
+        } catch (err) {
+            addFailure(run, Object.assign({}, sourceDetails, {
+                error: 'Download was staged, but could not be moved to the selected folder: ' + err.message
+            }));
         }
     }
 
-    console.log('\nExpected Workshop content location(s):');
-    const roots = getContentRoots(steamcmdPath);
-    const existingRoots = roots.filter(function (root) { return fs.existsSync(root); });
-    if (existingRoots.length) {
-        existingRoots.forEach(function (root) { console.log('  ' + path.join(root, String(appId), '<WorkshopID>')); });
-    } else {
-        console.log('  ' + path.join(path.dirname(steamcmdPath), 'steamapps', 'workshop', 'content', String(appId), '<WorkshopID>'));
-        console.log('  (SteamCMD installations may use a different library location; see its output above.)');
-    }
+    logInfo(run, 'Final download location: ' + targetGameDir);
+    logInfo(run, 'SteamCMD staging is kept separate from the configured download folder.');
 }
 
 async function extractDirectDownloadUrl(workshopId, appId) {
