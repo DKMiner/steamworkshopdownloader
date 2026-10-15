@@ -327,14 +327,14 @@ function logSetupMessage(message) { console.log(message); }
 
 async function configureSteamCMD(allowSkip) {
     while (true) {
-        console.log('\nSteamCMD was not found in PATH or options.ini.');
-        console.log('1. Enter the folder containing SteamCMD and save it');
-        console.log('2. Download SteamCMD into this project folder');
-        if (allowSkip) console.log('3. Skip for now (URL mode will still be available)');
-        const choice = await ask('Choose an option: ');
+        console.log('\nSteamCMD has not been configured.');
+        console.log('1. Select an existing SteamCMD folder');
+        console.log('2. Download SteamCMD here automatically');
+        if (allowSkip) console.log('3. Cancel');
+        const choice = await ask('Select an option: ');
 
         if (choice === '1') {
-            const folder = await ask('Enter the SteamCMD folder path (or the full executable path): ');
+            const folder = await ask('Enter the folder path or executable path: ');
             const found = resolveSteamCmdCandidate(folder);
             if (!found) {
                 console.log('Could not find ' + expectedSteamCmdNames().join(' or ') + ' in that location. Please check the path.');
@@ -833,7 +833,7 @@ async function runUrlMode() {
 }
 
 async function runIdMode() {
-    const run = createRun('Download by App ID and Workshop IDs with SteamCMD');
+    const run = createRun('Download by App ID and Workshop IDs');
     try {
         let appId;
         let ids;
@@ -858,39 +858,46 @@ async function runIdMode() {
 }
 
 async function main() {
+    console.log('\n==============================================');
+    console.log('          Steam Workshop Downloader');
     console.log('==============================================');
-    console.log('       Steam Workshop Downloader');
-    console.log('==============================================');
-    console.log('This is a CLI tool. No separate GUI is required.');
 
-    const steamcmdPath = findSteamCmd();
-    if (!steamcmdPath) await configureSteamCMD(true);
-    else console.log('SteamCMD found: ' + steamcmdPath);
+    try {
+        ensureOutputDirectories();
+    } catch (err) {
+        console.error('Could not prepare the download folder: ' + err.message);
+    }
 
     while (true) {
-        console.log('\nMain menu');
-        console.log('1. Download from urls.txt (collections and individual item URLs)');
-        console.log('2. Download by App ID + Workshop ID(s) using one SteamCMD session');
-        console.log('3. Configure / download SteamCMD');
-        console.log('4. Exit');
-        const choice = await ask('Choose an option: ');
+        console.log('\nDownload folder: ' + getOutputPath());
+        console.log('SteamCMD: ' + (findSteamCmd() ? 'Configured' : 'Not configured'));
+        console.log('\nMain Menu');
+        console.log('  1. Download from urls.txt');
+        console.log('  2. Download by App ID and Workshop IDs');
+        console.log('  3. Change download folder');
+        console.log('  4. SteamCMD settings');
+        console.log('  5. Exit');
 
+        const choice = await ask('\nSelect an option: ');
         if (choice === '1') {
             await runUrlMode();
         } else if (choice === '2') {
             if (!findSteamCmd()) {
+                console.log('\nSteamCMD is needed for this option.');
                 const configured = await configureSteamCMD(false);
                 if (!configured) continue;
             }
             await runIdMode();
         } else if (choice === '3') {
-            await configureSteamCMD(false);
+            await changeOutputFolder();
         } else if (choice === '4') {
-            console.log('Goodbye.');
+            await configureSteamCMD(false);
+        } else if (choice === '5') {
+            console.log('\nGoodbye.');
             rl.close();
             return;
         } else {
-            console.log('Please enter 1, 2, 3, or 4.');
+            console.log('Please choose an option from 1 to 5.');
         }
     }
 }
