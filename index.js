@@ -352,17 +352,29 @@ async function downloadViaSteamCMD(run, appId, ids, source) {
     const steamcmdPath = findSteamCmd();
     if (!steamcmdPath) throw new Error('SteamCMD is not configured. Select menu option 3 to configure it.');
 
-    const args = ['+login', 'anonymous'];
-    for (const id of ids) args.push('+workshop_download_item', String(appId), String(id), 'validate');
-    args.push('+quit');
+    // SteamCMD's runscript avoids Windows command-line length limits and lets it
+    // continue to later IDs when one individual item fails.
+    const scriptPath = path.join(ROOT, '.steamcmd-batch-' + Date.now() + '.txt');
+    const scriptLines = [
+        '@ShutdownOnFailedCommand 0',
+        '@NoPromptForPassword 1',
+        'login anonymous'
+    ];
+    for (const id of ids) {
+        scriptLines.push('workshop_download_item ' + String(appId) + ' ' + String(id) + ' validate');
+    }
+    scriptLines.push('quit');
+    fs.writeFileSync(scriptPath, scriptLines.join('\n') + '\n', 'utf8');
+    const args = ['+runscript', scriptPath];
 
     logInfo(run, 'SteamCMD executable: ' + steamcmdPath);
     logInfo(run, 'App ID: ' + appId);
     logInfo(run, 'Workshop IDs: ' + ids.join(', '));
-    logInfo(run, 'SteamCMD will be started once: one anonymous login, then all Workshop IDs in the same session.');
-    logInfo(run, 'Command sequence: +login anonymous ' + ids.map(function (id) {
-        return '+workshop_download_item ' + appId + ' ' + id + ' validate';
-    }).join(' ') + ' +quit');
+    logInfo(run, 'SteamCMD will be started once. Its runscript performs one anonymous login and then tries every ID in the same session.');
+    logInfo(run, 'The script continues after individual failures and suppresses password prompts.');
+    logInfo(run, 'Command sequence: login anonymous; ' + ids.map(function (id) {
+        return 'workshop_download_item ' + appId + ' ' + id + ' validate';
+    }).join('; ') + '; quit');
     console.log('\nStarting SteamCMD. Its output is shown below:\n');
 
     let output = '';
@@ -396,6 +408,7 @@ async function downloadViaSteamCMD(run, appId, ids, source) {
         child.on('close', finish);
     });
 
+    try { fs.unlinkSync(scriptPath); } catch (_) {}
     if (childError) logInfo(run, 'Could not launch SteamCMD: ' + childError.message);
     else logInfo(run, 'SteamCMD process exited with code: ' + exitCode);
 
