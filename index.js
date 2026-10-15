@@ -702,33 +702,43 @@ async function downloadWebItem(run, details) {
     const label = details.itemName || ('Workshop item ' + workshopId);
     if (!appId) throw new Error('Could not determine the App ID from the Steam Workshop page.');
 
+    const gameName = details.gameName || await getGameName(appId);
+    const outputRoot = ensureOutputDirectories();
     const directory = details.collectionName
-        ? path.join(DOWNLOAD_DIR, validName(details.collectionName))
-        : path.join(DOWNLOAD_DIR, 'Individual Items');
+        ? path.join(outputRoot, 'collections', validName(details.collectionName))
+        : path.join(outputRoot, 'items', validName(gameName));
     fs.mkdirSync(directory, { recursive: true });
     const fileName = validName(label) + FILE_EXTENSION;
     const outputFile = path.join(directory, fileName);
 
     if (fs.existsSync(outputFile) && fs.statSync(outputFile).size > 0) {
-        logInfo(run, 'Already exists, skipping: ' + label);
+        logInfo(run, 'Already downloaded; skipping: ' + label);
         addSuccess(run, {
-            sourceType: details.sourceType, sourceLabel: details.sourceLabel,
-            collectionName: details.collectionName || '', appId: appId, workshopId: workshopId,
+            sourceType: details.sourceType,
+            sourceLabel: details.sourceLabel,
+            collectionName: details.collectionName || '',
+            appId: appId,
+            gameName: gameName,
+            workshopId: workshopId,
             note: 'Skipped because the output file already exists.'
         });
         return;
     }
 
-    logInfo(run, 'Downloading "' + label + '" (App ID ' + appId + ', Workshop ID ' + workshopId + ')');
+    logInfo(run, 'Downloading "' + label + '" (' + gameName + ', Workshop ID ' + workshopId + ')');
     const directUrl = await extractDirectDownloadUrl(workshopId, appId);
     await downloadAndSave(directUrl, directory, fileName);
     if (!fs.existsSync(outputFile) || fs.statSync(outputFile).size === 0) {
         throw new Error('The download finished without a non-empty output file being found.');
     }
-    logInfo(run, 'Finished: ' + outputFile);
+    logInfo(run, 'Saved: ' + outputFile);
     addSuccess(run, {
-        sourceType: details.sourceType, sourceLabel: details.sourceLabel,
-        collectionName: details.collectionName || '', appId: appId, workshopId: workshopId
+        sourceType: details.sourceType,
+        sourceLabel: details.sourceLabel,
+        collectionName: details.collectionName || '',
+        appId: appId,
+        gameName: gameName,
+        workshopId: workshopId
     });
 }
 
@@ -736,7 +746,7 @@ async function runUrlMode() {
     const run = createRun('Download from urls.txt');
     try {
         logInfo(run, 'Started URL mode. Reading: ' + URLS_FILE);
-        logInfo(run, 'Output folder: ' + DOWNLOAD_DIR);
+        logInfo(run, 'Output folder: ' + getOutputPath());
         if (!fs.existsSync(URLS_FILE)) {
             fs.writeFileSync(URLS_FILE, '# Add Steam Workshop collection or individual-item URLs, one per line.\n', 'utf8');
             throw new Error('urls.txt did not exist, so an example file has been created. Add URLs and run again.');
@@ -747,7 +757,7 @@ async function runUrlMode() {
             .filter(function (line) { return line && !line.startsWith('#'); });
 
         if (!urls.length) throw new Error('urls.txt contains no URLs. Add one collection or item URL per line.');
-        fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+        ensureOutputDirectories();
         logInfo(run, 'Found ' + urls.length + ' URL(s). Collections and individual Workshop items are detected automatically.');
 
         for (const url of urls) {
@@ -780,11 +790,12 @@ async function runUrlMode() {
 
                 if (collectionItems.length) {
                     logInfo(run, 'Detected collection: "' + pageTitle + '" (' + collectionItems.length + ' items)');
+                    const gameName = appId ? await getGameName(appId) : null;
                     for (const item of collectionItems) {
                         try {
                             await downloadWebItem(run, {
                                 sourceType: 'Collection URL', sourceLabel: url, collectionName: pageTitle,
-                                appId: appId, workshopId: item.workshopId, itemName: item.name
+                                appId: appId, gameName: gameName, workshopId: item.workshopId, itemName: item.name
                             });
                         } catch (err) {
                             logInfo(run, 'FAILED Workshop ID ' + item.workshopId + ': ' + err.message);
@@ -796,9 +807,10 @@ async function runUrlMode() {
                     if (!workshopId) throw new Error('Could not identify a Workshop ID on this page. It may be unavailable or not be an item / collection.');
                     logInfo(run, 'Detected individual Workshop item: ' + workshopId);
                     try {
+                        const gameName = appId ? await getGameName(appId) : 'App ' + appId;
                         await downloadWebItem(run, {
                             sourceType: 'Item URL', sourceLabel: url, collectionName: '',
-                            appId: appId, workshopId: workshopId, itemName: pageTitle
+                            appId: appId, gameName: gameName, workshopId: workshopId, itemName: pageTitle
                         });
                     } catch (err) {
                         logInfo(run, 'FAILED Workshop ID ' + workshopId + ': ' + err.message);
