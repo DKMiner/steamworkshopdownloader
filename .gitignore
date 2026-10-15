@@ -103,4 +103,12 @@ dist
 # TernJS port file
 .tern-port
 
-downloads
+# User-generated content and local configuration
+downloads/
+steamcmd/
+.runtime/
+options.ini
+log.log
+logs/
+.steamcmd-download.zip
+.steamcmd-download.tar.gz

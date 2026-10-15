@@ -1,37 +1,60 @@
-# Steam Workshop Collection Downloader
+# Steam Workshop Downloader
 
-Simple steam workshop collection downloader built using nodejs.
-Capable of downloading both Steam Workshop collections and individual workshop items. Follow the instruction below to use this.
+A cross-platform command-line tool for downloading Steam Workshop collections and individual items through SteamCMD.
 
-# Downloading collections
+## Getting started
 
-1. Firstly you will need Node JS installed in your pc. you can get it from [https://nodejs.org/en/download/](https://nodejs.org/en/download/).
-2. Download or Clone the repository. (you can do it using the clone or download button and download zip, extract the zip into a folder.)
-3. Open cmd or bash in the directory where repository was cloned. *(open cmd or bash and go to the directory. make sure it is prompting on the same drive c: or d: and use `cd <directory where you have the file from git>`.)*
-4. Run `npm install` command on cmd or bash to install required libraries.
-5. Now open urls.txt using any texteditor and put urls to **collections** as it is provided in given example. *(make sure that the url are to the collection and that they are seperated by line break `<enter>`)*
-6. Run `npm start` command to start downloading. All your downloads should be under downloads folder.
+**Windows:** run setup.bat, then run start.bat.
 
+**Linux:** run:
 
-*note: sometimes some workshop items are not downloaded using this method. Read the individual workshop item downloader part for that.*
+    chmod +x setup.sh start.sh
+    ./setup.sh
+    ./start.sh
 
-*note 2: if you want to change the default file extension from .zip use `npm start <new extension>` command instead of `npm start`*
+Setup checks for Node.js and npm, attempts automatic installation where practical, and installs the project dependencies. SteamCMD is downloaded automatically into the project's steamcmd directory the first time a download is requested. It does not search PATH or use a SteamCMD installation from the user's regular Steam setup.
 
-# Downloading individual workshop items (via SteamCMD)
+## Main menu
 
-1. Download and install SteamCMD and add it to PATH (visit [https://developer.valvesoftware.com/wiki/SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) for more info)
-2. Run either download_with_SteamCMD.sh (Linux) or download_with_SteamCMD.bat (Windows) based on your system.
-   
-*Linux note: you may need to run chmod +x download_with_SteamCMD.sh on Linux before being able to execute the file*
+1. **Download from urls.txt** — add one Steam Workshop collection URL or individual-item URL per line. The program reads collection contents and downloads the contained Workshop items through SteamCMD.
+2. **Download by App ID and Workshop IDs** — enter one App ID and comma-separated Workshop IDs.
+3. **Change download folder** — choose where completed downloads should be saved. The path is stored in options.ini.
+4. **Install / repair SteamCMD** — download or refresh the application's private SteamCMD installation.
+5. Exit.
 
-*Windows note: either add SteamCMD to path or copy the directory where the executable is located by clicking on the address bar in the windows explorer*
+## Download layout
 
-# TO DO
-1. Try to change the SteamCMD scripts to download all items in one go instead of connecting to Steam for every single item
+The default output location is the project's downloads folder. It can be changed from the menu. Completed content uses this structure:
 
-4. Enter the App ID for the game you want to download the workshop items for.
-5. Enter the Workshop IDs for items you wanna download. If there's more than one you can separate them by comma
-6. Wait
-7. Go to the location pointed out by SteamCMD
+    downloads/
+      collections/
+        My beautiful collection/
+          1234567890/
+            Workshop files...
+      items/
+        Garry's Mod/
+          1234567890/
+            Workshop files...
 
-*note: conveniently, the node.js script gives you the workshop ID of failed downloads separated by comma. You can use that here easily :D*
+- **Collection URLs:** Steam's collection details API supplies the member item IDs. Each item is downloaded with SteamCMD and saved in collections/<collection name>/<Workshop ID>/.
+- **Individual item URLs:** the Workshop item ID and App ID are resolved from the Steam Workshop page and Steam's published-file details API, then the files are downloaded through SteamCMD into items/<game name>/<Workshop ID>/.
+- **App ID mode:** files downloaded with SteamCMD are copied from its private working area to items/<game name>/<Workshop ID>/. The private working area is inside the project's steamcmd folder, not the user's usual Steam client directory.
+- Game names are looked up from Steam Store data, with SteamDB as a fallback. If neither lookup works, the folder uses App <AppID>.
+
+SteamCMD's verbose output is shown once in the terminal. A structured report is written to log.log, with timestamped copies in logs/. The program prints a short completion summary instead of printing the report a second time.
+
+## Notes
+
+- Workshop collections are groups of individual items; SteamCMD downloads those individual items, not the collection ID itself.
+- Public items that permit anonymous access can generally be downloaded without signing into a personal Steam account. Some content may require permissions or may be unavailable through anonymous access; those failures are recorded in the report.
+- options.ini stores the selected output path. The SteamCMD installation location is fixed to the project's steamcmd directory.
+- The repository's .gitignore excludes downloads, SteamCMD runtime data, logs, and local configuration. These generated files should not be committed.
+
+## Troubleshooting
+
+1. Run setup.bat or ./setup.sh if Node.js dependencies are missing.
+2. Choose **Install / repair SteamCMD** if the private SteamCMD installation is incomplete.
+3. Check log.log or logs/ for the full report.
+4. Copy failed Workshop IDs from section 3 and retry with menu option 2, using the correct App ID.
+
+Licensed under the terms in LICENSE.
