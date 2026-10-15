@@ -17,6 +17,7 @@ const LOG_DIR = path.join(ROOT, 'logs');
 const LOG_FILE = path.join(ROOT, 'downloader.log');
 const OPTIONS_FILE = path.join(ROOT, 'options.ini');
 const FILE_EXTENSION = normalizeExtension(process.argv[2] || '.zip');
+const gameNameCache = new Map();
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -359,21 +360,97 @@ async function configureSteamCMD(allowSkip) {
     }
 }
 
-function getContentRoots(steamcmdPath) {
-    const roots = [
-        path.join(path.dirname(steamcmdPath), 'steamapps', 'workshop', 'content'),
-        path.join(os.homedir(), '.local', 'share', 'Steam', 'steamapps', 'workshop', 'content'),
-        path.join(os.homedir(), '.steam', 'steam', 'steamapps', 'workshop', 'content'),
-        path.join(os.homedir(), '.steam', 'steamcmd', 'steamapps', 'workshop', 'content')
-    ];
-    if (process.platform === 'win32') {
-        if (process.env['ProgramFiles(x86)']) roots.push(path.join(process.env['ProgramFiles(x86)'], 'Steam', 'steamapps', 'workshop', 'content'));
-        if (process.env.LOCALAPPDATA) roots.push(path.join(process.env.LOCALAPPDATA, 'Steam', 'steamapps', 'workshop', 'content'));
+async function getGameName(appId) {
+    const key = String(appId);
+    if (gameNameCache.has(key)) return gameNameCache.get(key);
+
+    let name = null;
+    try {
+        const response = await axios.get('https://store.steampowered.com/api/appdetails', {
+            params: { appids: key, l: 'english' },
+            timeout: 15000,
+            headers: { 'User-Agent': 'SteamWorkshopDownloader/1.0' }
+        });
+        const details = response.data && response.data[key];
+        if (details && details.success && details.data && details.data.name) {
+            name = details.data.name;
+        }
+    } catch (_) {}
+
+    if (!name) {
+        try {
+            const response = await axios.get('https://steamdb.info/app/' + encodeURIComponent(key) + '/', {
+                timeout: 15000,
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SteamWorkshopDownloader/1.0)' }
+            });
+            const dom = new JSDOM(response.data);
+            const meta = dom.window.document.querySelector('meta[property="og:title"], meta[name="title"]');
+            name = meta && meta.content ? meta.content.replace(/\s*[|·-]\s*SteamDB.*$/i, '').trim() : null;
+            if (!name) {
+                const title = dom.window.document.title || '';
+                name = title.replace(/\s*[|·-]\s*SteamDB.*$/i, '').trim() || null;
+            }
+            dom.window.close();
+        } catch (_) {}
     }
-    return Array.from(new Set(roots.map(function (root) { return path.resolve(root); })));
+
+    const safeName = validName(name || ('App ' + key));
+    gameNameCache.set(key, safeName);
+    return safeName;
 }
 
-function hasWorkshopContent(steamcmdPath, appId, workshopId) {
+function copySteamCmdRuntime(sourceExecutable) {
+    fs.mkdirSync(STEAMCMD_STAGING_DIR, { recursive: true });
+    const runtimeDir = path.join(STEAMCMD_STAGING_DIR, 'runtime');
+    const options = readOptions();
+    let resolvedSource = sourceExecutable;
+    try { resolvedSource = fs.realpathSync(sourceExecutable); } catch (_) {}
+    const sourceDir = path.dirname(resolvedSource);
+    const previousSource = options.steamcmdRuntimeSource || '';
+
+    const privateExecutable = resolveSteamCmdCandidate(runtimeDir);
+    if (privateExecutable && previousSource === resolvedSource) return privateExecutable;
+
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+    fs.mkdirSync(runtimeDir, { recursive: true });
+
+    const excludedTopLevel = new Set(['steamapps', 'userdata', 'config', 'logs', 'appcache', 'depotcache']);
+    for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+        if (excludedTopLevel.has(entry.name.toLowerCase())) continue;
+        const from = path.join(sourceDir, entry.name);
+        const to = path.join(runtimeDir, entry.name);
+        try {
+            fs.cpSync(from, to, { recursive: true, dereference: false });
+        } catch (err) {
+            // A non-essential cache or locked file should not stop using a standalone SteamCMD install.
+            if (entry.name === path.basename(resolvedSource)) throw err;
+        }
+    }
+
+    // Some SteamCMD installs are distributed as a bootstrap executable on its own.
+    const desiredName = path.basename(resolvedSource);
+    const copiedExe = path.join(runtimeDir, desiredName);
+    if (!fs.existsSync(copiedExe)) fs.copyFileSync(resolvedSource, copiedExe);
+
+    const found = resolveSteamCmdCandidate(runtimeDir);
+    if (!found) {
+        throw new Error('Could not prepare an isolated SteamCMD runtime from ' + sourceExecutable);
+    }
+    saveOption('steamcmdRuntimeSource', resolvedSource);
+    return found;
+}
+
+function getContentRoots(steamcmdPath) {
+    // Search only the application's private staging/runtime folders.
+    // Never inspect the user's normal Steam client library folders.
+    return Array.from(new Set([
+        path.join(path.dirname(steamcmdPath), 'steamapps', 'workshop', 'content'),
+        path.join(STEAMCMD_STAGING_DIR, 'steamapps', 'workshop', 'content'),
+        path.join(STEAMCMD_STAGING_DIR, 'install', 'steamapps', 'workshop', 'content')
+    ].map(function (root) { return path.resolve(root); })));
+}
+
+function findWorkshopContent(steamcmdPath, appId, workshopId) {
     for (const root of getContentRoots(steamcmdPath)) {
         const itemDir = path.join(root, String(appId), String(workshopId));
         try {
@@ -381,6 +458,21 @@ function hasWorkshopContent(steamcmdPath, appId, workshopId) {
         } catch (_) {}
     }
     return null;
+}
+
+function moveWorkshopContent(sourceDir, destinationDir) {
+    fs.mkdirSync(path.dirname(destinationDir), { recursive: true });
+    if (fs.existsSync(destinationDir)) {
+        // Refresh the folder from the new download without leaving stale files behind.
+        fs.rmSync(destinationDir, { recursive: true, force: true });
+    }
+    try {
+        fs.renameSync(sourceDir, destinationDir);
+    } catch (err) {
+        // Cross-volume moves can fail on some systems, so copy and then remove the staged copy.
+        fs.cpSync(sourceDir, destinationDir, { recursive: true, force: true });
+        fs.rmSync(sourceDir, { recursive: true, force: true });
+    }
 }
 
 async function downloadViaSteamCMD(run, appId, ids, source) {
