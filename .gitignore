@@ -104,3 +104,8 @@ dist
 .tern-port
 
 downloads
+# Local runtime, configuration, and incomplete installer archives
+.runtime/
+options.ini
+.steamcmd-download.zip
+.steamcmd-download.tar.gz
