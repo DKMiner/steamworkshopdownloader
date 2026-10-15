@@ -28,8 +28,8 @@ The default output location is the project's downloads folder. It can be changed
 
     downloads/
       collections/
-        TTT maps/
-          3816509080/
+        My beautiful collection/
+          1234567890/
             Workshop files...
       items/
         Garry's Mod/
