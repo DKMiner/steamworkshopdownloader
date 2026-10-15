@@ -104,9 +104,15 @@ dist
 .tern-port
 
 downloads
-# Local runtime, configuration, and incomplete installer archives
+
+# Generated downloads and private SteamCMD data
+downloads/
+steamcmd/
+.steamcmd-staging/
 .runtime/
 options.ini
+downloader.log
+logs/
 .steamcmd-download.zip
 .steamcmd-download.tar.gz
 .steamcmd-batch-*.txt
