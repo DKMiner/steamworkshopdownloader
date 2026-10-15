@@ -556,6 +556,7 @@ async function downloadViaSteamCMD(run, requests) {
     const scriptLines = [
         '@ShutdownOnFailedCommand 0',
         '@NoPromptForPassword 1',
+        'force_install_dir ./',
         'login anonymous'
     ];
 
@@ -564,6 +565,12 @@ async function downloadViaSteamCMD(run, requests) {
     }
     scriptLines.push('quit');
     fs.writeFileSync(scriptPath, scriptLines.join('\n') + '\n', 'utf8');
+
+    // Clear old staged copies so an interrupted prior run cannot be mistaken for a new success.
+    for (const item of workItems) {
+        const oldStagedDir = path.join(STEAMCMD_DIR, 'steamapps', 'workshop', 'content', item.appId, item.workshopId);
+        try { fs.rmSync(oldStagedDir, { recursive: true, force: true }); } catch (_) {}
+    }
 
     logInfo(run, 'Output folder: ' + outputRoot);
     logInfo(run, 'SteamCMD: ' + steamcmdPath);
