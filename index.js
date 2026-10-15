@@ -196,6 +196,7 @@ function saveReport(run) {
     }
     output.push('');
     const report = output.join('\n') + '\n';
+    console.log('\n' + report);
     try {
         fs.mkdirSync(LOG_DIR, { recursive: true });
         fs.writeFileSync(LOG_FILE, report, 'utf8');
